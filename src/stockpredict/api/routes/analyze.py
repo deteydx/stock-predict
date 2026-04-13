@@ -1,12 +1,15 @@
 """POST /api/analyze/{ticker} — trigger or retrieve analysis."""
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 import logging
 import time
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import Settings
@@ -25,6 +28,11 @@ _progress_store_created: dict[int, float] = {}  # task_id → creation timestamp
 
 _PROGRESS_TTL_SECONDS = 600  # 10 minutes
 
+_DEFAULT_MODELS: dict[str, str] = {
+    "openai": "gpt-5.4",
+    "claude": "claude-sonnet-4-6",
+}
+
 
 def _cleanup_stale_progress():
     """Remove progress entries older than TTL to prevent memory leaks."""
@@ -38,8 +46,27 @@ def _cleanup_stale_progress():
         _progress_store_created.pop(tid, None)
 
 
+@dataclass(frozen=True)
+class RequestedAIConfig:
+    enabled: bool
+    provider: str | None = None
+    model: str | None = None
+
+
+class AnalyzeAIRequest(BaseModel):
+    provider: Literal["openai", "claude"] = "openai"
+    model: str = Field(default="", max_length=120)
+    api_key: str = Field(default="", max_length=512)
+
+    @field_validator("model", "api_key")
+    @classmethod
+    def _strip_value(cls, value: str) -> str:
+        return value.strip()
+
+
 class AnalyzeRequest(BaseModel):
     force_refresh: bool = False
+    ai: AnalyzeAIRequest | None = None
 
 
 class AnalyzeResponse(BaseModel):
@@ -47,6 +74,69 @@ class AnalyzeResponse(BaseModel):
     analysis_id: int | None = None
     cached: bool = False
     status: str = "started"
+
+
+def _default_model_for_provider(provider: Literal["openai", "claude"], settings: Settings) -> str:
+    if provider == "openai":
+        return settings.ai.openai_model or _DEFAULT_MODELS["openai"]
+    return settings.ai.claude_model or _DEFAULT_MODELS["claude"]
+
+
+def _build_runtime_settings(
+    settings: Settings,
+    request_ai: AnalyzeAIRequest | None,
+) -> tuple[Settings, RequestedAIConfig]:
+    runtime_settings = settings.model_copy(deep=True)
+    runtime_ai = runtime_settings.ai.model_copy(deep=True)
+
+    if request_ai is None:
+        if not runtime_ai.ai_enabled:
+            return runtime_settings, RequestedAIConfig(enabled=False)
+
+        model = (
+            runtime_ai.openai_model
+            if runtime_ai.ai_provider == "openai"
+            else runtime_ai.claude_model
+        )
+        return runtime_settings, RequestedAIConfig(
+            enabled=True,
+            provider=runtime_ai.ai_provider,
+            model=model,
+        )
+
+    provider = request_ai.provider
+    model = request_ai.model or _default_model_for_provider(provider, settings)
+    api_key = request_ai.api_key
+
+    runtime_ai.ai_enabled = bool(api_key)
+    runtime_ai.ai_provider = provider
+    runtime_ai.openai_api_key = api_key if provider == "openai" else ""
+    runtime_ai.anthropic_api_key = api_key if provider == "claude" else ""
+
+    if provider == "openai":
+        runtime_ai.openai_model = model
+    else:
+        runtime_ai.claude_model = model
+
+    runtime_settings.ai = runtime_ai
+
+    if not runtime_ai.ai_enabled:
+        return runtime_settings, RequestedAIConfig(enabled=False)
+
+    return runtime_settings, RequestedAIConfig(
+        enabled=True,
+        provider=provider,
+        model=model,
+    )
+
+
+def _matches_requested_ai_config(analysis: Analysis, requested_ai: RequestedAIConfig) -> bool:
+    if not requested_ai.enabled:
+        return analysis.ai_provider is None and analysis.ai_model is None
+    return (
+        analysis.ai_provider == requested_ai.provider
+        and analysis.ai_model == requested_ai.model
+    )
 
 
 async def _run_pipeline(analysis_id: int, ticker: str, settings: Settings):
@@ -119,10 +209,12 @@ async def analyze_ticker(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
+    runtime_settings, requested_ai = _build_runtime_settings(settings, request.ai)
+
     # Check for cached result
     if not request.force_refresh:
         cached = await crud.get_latest(db, current_user.id, ticker, max_age_hours=24)
-        if cached:
+        if cached and _matches_requested_ai_config(cached, requested_ai):
             return AnalyzeResponse(
                 analysis_id=cached.id,
                 cached=True,
@@ -130,7 +222,7 @@ async def analyze_ticker(
             )
 
     running = await crud.get_running(db, current_user.id, ticker, max_age_minutes=10)
-    if running:
+    if running and _matches_requested_ai_config(running, requested_ai):
         return AnalyzeResponse(
             task_id=running.id,
             analysis_id=running.id,
@@ -144,6 +236,8 @@ async def analyze_ticker(
         ticker=ticker,
         status="running",
         created_at=datetime.utcnow(),
+        ai_provider=requested_ai.provider,
+        ai_model=requested_ai.model,
     )
     analysis_id = await crud.save_analysis(db, analysis)
 
@@ -153,7 +247,7 @@ async def analyze_ticker(
     _progress_store_created[analysis_id] = time.monotonic()
 
     # Run pipeline in background
-    background_tasks.add_task(_run_pipeline, analysis_id, ticker, settings)
+    background_tasks.add_task(_run_pipeline, analysis_id, ticker, runtime_settings)
 
     return AnalyzeResponse(
         task_id=analysis_id,

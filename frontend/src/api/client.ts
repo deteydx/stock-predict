@@ -4,6 +4,7 @@ import type {
   AnalysisDetail,
   AnalysisListItem,
   AuthResponse,
+  UserLLMSettings,
   WatchlistItem,
 } from '../types'
 
@@ -17,10 +18,23 @@ const inflightAnalysisRequests = new Map<string, Promise<AnalyzeResponse>>()
 
 export async function startAnalysis(
   ticker: string,
-  forceRefresh = false
+  forceRefresh = false,
+  aiSettings?: UserLLMSettings
 ): Promise<AnalyzeResponse> {
   const normalizedTicker = ticker.toUpperCase()
-  const requestKey = `${normalizedTicker}:${forceRefresh ? 'refresh' : 'default'}`
+  const trimmedApiKey = aiSettings?.apiKey.trim()
+  const effectiveAiSettings = aiSettings && trimmedApiKey
+    ? {
+        provider: aiSettings.provider,
+        model: aiSettings.model,
+        apiKey: trimmedApiKey,
+      }
+    : undefined
+  const requestKey = JSON.stringify({
+    ticker: normalizedTicker,
+    forceRefresh,
+    ai: effectiveAiSettings ?? null,
+  })
   const existingRequest = inflightAnalysisRequests.get(requestKey)
   if (existingRequest) {
     return existingRequest
@@ -28,6 +42,13 @@ export async function startAnalysis(
 
   const request = api.post<AnalyzeResponse>(`/analyze/${normalizedTicker}`, {
     force_refresh: forceRefresh,
+    ai: effectiveAiSettings
+      ? {
+          provider: effectiveAiSettings.provider,
+          model: effectiveAiSettings.model,
+          api_key: effectiveAiSettings.apiKey,
+        }
+      : undefined,
   })
     .then(({ data }) => data)
     .finally(() => {

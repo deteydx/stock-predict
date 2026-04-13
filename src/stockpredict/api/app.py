@@ -9,11 +9,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config.settings import get_settings
 from stockpredict.db.database import init_db
 
 logger = logging.getLogger(__name__)
+
+
+class SPAStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            if scope["method"] not in {"GET", "HEAD"}:
+                raise
+            if "." in Path(path).name:
+                raise
+            return await super().get_response("index.html", scope)
 
 
 @asynccontextmanager
@@ -57,7 +72,7 @@ def create_app() -> FastAPI:
     # Serve frontend static files in production
     frontend_dist = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "dist"
     if frontend_dist.exists():
-        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+        app.mount("/", SPAStaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
     return app
 

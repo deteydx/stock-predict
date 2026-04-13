@@ -34,9 +34,9 @@ class AISettings(BaseSettings):
     ai_enabled: bool = True
     ai_provider: Literal["openai", "claude"] = "openai"
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-5.4"
     anthropic_api_key: str = ""
-    claude_model: str = "claude-sonnet-4-20250514"
+    claude_model: str = "claude-sonnet-4-6"
 
 
 class MLSettings(BaseSettings):

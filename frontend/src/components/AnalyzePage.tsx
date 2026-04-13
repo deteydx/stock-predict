@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   addToWatchlist,
+  extractApiErrorMessage,
   getAnalysisDetail,
   getWatchlist,
   removeFromWatchlist,
@@ -9,6 +10,8 @@ import {
   subscribeToProgress,
 } from '../api/client'
 import type { ProgressUpdate, Report } from '../types'
+import { useAuth } from '../context/AuthContext'
+import { getStoredLLMSettings } from '../hooks/useLLMSettings'
 import { useI18n } from '../i18n'
 import TickerInput from './TickerInput'
 import ProgressBar from './ProgressBar'
@@ -22,6 +25,7 @@ export default function AnalyzePage() {
   const { ticker: paramTicker } = useParams<{ ticker: string }>()
   const navigate = useNavigate()
   const ticker = (paramTicker || '').toUpperCase()
+  const { user } = useAuth()
   const { t } = useI18n()
 
   const [phase, setPhase] = useState<Phase>('idle')
@@ -59,7 +63,7 @@ export default function AnalyzePage() {
       setReport(null)
 
       try {
-        const resp = await startAnalysis(ticker, forceRefresh)
+        const resp = await startAnalysis(ticker, forceRefresh, getStoredLLMSettings(user?.id))
         if (requestVersionRef.current !== requestVersion) return
 
         if (resp.cached && resp.analysis_id) {
@@ -110,11 +114,11 @@ export default function AnalyzePage() {
         }
       } catch (err: any) {
         if (requestVersionRef.current !== requestVersion) return
-        setError(err.message || 'analysis_failed')
+        setError(extractApiErrorMessage(err) || err.message || 'analysis_failed')
         setPhase('error')
       }
     },
-    [clearProgressSubscription, ticker]
+    [clearProgressSubscription, ticker, user?.id]
   )
 
   // Auto-start analysis when page loads

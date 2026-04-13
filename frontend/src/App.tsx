@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import AnalyzePage from './components/AnalyzePage'
 import AuthPage from './components/AuthPage'
 import HomePage from './components/HomePage'
+import LLMSettingsMenu from './components/LLMSettingsMenu'
 import { useAuth } from './context/AuthContext'
 import { useI18n } from './i18n'
 
@@ -36,6 +37,7 @@ export default function App() {
               </button>
             ))}
           </div>
+          {user && <LLMSettingsMenu />}
           {user && (
             <div className="flex items-center gap-2 rounded-lg border border-gray-800 bg-gray-900 px-3 py-1.5">
               <span className="text-xs text-gray-400">{user.email}</span>

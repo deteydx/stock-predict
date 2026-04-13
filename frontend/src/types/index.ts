@@ -1,3 +1,11 @@
+export type LLMProvider = 'openai' | 'claude'
+
+export interface UserLLMSettings {
+  provider: LLMProvider
+  model: string
+  apiKey: string
+}
+
 export interface Signal {
   name: string
   value: number | null

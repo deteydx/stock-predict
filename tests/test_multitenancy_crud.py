@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from stockpredict.api.security import hash_password, verify_password
@@ -10,7 +11,7 @@ from stockpredict.db import crud
 from stockpredict.db.models import Analysis, Base
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session(tmp_path):
     db_path = tmp_path / "test.db"
     engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
