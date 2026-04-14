@@ -314,6 +314,11 @@ async def run_analysis(
         signals = analyzer.analyze(ctx)
         horizon_score = score_horizon(analyzer.horizon, signals, ctx.weights)
 
+        # Attach structured support/resistance levels if the analyzer produced them
+        levels = getattr(analyzer, "levels", None)
+        if levels:
+            horizon_score.levels = levels
+
         # ML prediction
         ml_prob = predictor.predict_up_probability(pd.DataFrame(), analyzer.horizon)
         final_score = aggregate(

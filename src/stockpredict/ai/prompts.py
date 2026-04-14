@@ -14,7 +14,7 @@ SYSTEM_PROMPT = """\
 
 ## 2. 短期展望（1-2周）
 基于技术面信号，明确看涨/看跌/震荡，给出：
-- 关键支撑位和阻力位
+- 关键支撑位和阻力位（必须直接引用下方"支撑/阻力结构"中的价位、强度和构成依据，例如"28.50 是强支撑，由 MA60 + POC + 2 次放量 swing low 共振而成"；不要自己另外编造价位）
 - 成交量分析
 - 动量判断
 
@@ -74,6 +74,22 @@ def build_user_prompt(report_data: dict) -> str:
                 sections.append("```json")
                 sections.append(json.dumps(h["signals"], ensure_ascii=False, indent=2, default=str))
                 sections.append("```")
+            levels = h.get("levels") or []
+            if levels:
+                sections.append(
+                    "支撑/阻力结构（已按成交量、时间衰减、多源共振综合评分，strength 越大越强）:"
+                )
+                for lv in levels:
+                    sources = lv.get("sources") or []
+                    src_txt = ", ".join(
+                        f"{s.get('kind')}@{s.get('price')}" for s in sources[:6]
+                    )
+                    sections.append(
+                        f"- [{lv.get('kind')}] ${lv.get('price')}  "
+                        f"strength={lv.get('strength')}  "
+                        f"距现价 {float(lv.get('distance_pct', 0)) * 100:+.2f}%  "
+                        f"依据: {src_txt}"
+                    )
 
     # News
     news = report_data.get("news", [])

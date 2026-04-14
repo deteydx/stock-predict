@@ -52,6 +52,25 @@ class Signal(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Structured support / resistance levels
+# ---------------------------------------------------------------------------
+
+class LevelSource(BaseModel):
+    kind: str                  # swing_low, swing_high, ma20, ma60, ma120, fib_0.382, hvn, poc, val, vah, pivot_s1, ...
+    price: float
+    weight: float              # contribution to cluster strength (already includes volume / recency)
+    detail: str = ""           # human-readable note (e.g. "swing low 2025-11-03, vol 1.8x")
+
+
+class Level(BaseModel):
+    price: float               # cluster center
+    kind: str                  # "support" | "resistance"
+    strength: float            # 0..1 normalized within the response
+    distance_pct: float        # (level - current) / current — negative = below price
+    sources: list[LevelSource] = []
+
+
+# ---------------------------------------------------------------------------
 # Horizon score (aggregated per time horizon)
 # ---------------------------------------------------------------------------
 
@@ -63,7 +82,7 @@ class HorizonScore(BaseModel):
     verdict: Verdict
     confidence: float          # 0..1
     signals: list[Signal] = []
-    key_levels: dict[str, list[float]] = Field(default_factory=dict)  # support/resistance
+    levels: list[Level] = []   # fused support/resistance levels (short-term only, for now)
     caveats: list[str] = []
 
 

@@ -10,7 +10,7 @@ short_term:
   atr_regime: 0.8
   obv_trend: 1.0
   volume_spike: 0.8
-  pivot_sr: 1.0
+  support_resistance: 1.2
   momentum_5d: 0.7
   news_sentiment_24h: 1.2
   news_volume_zscore: 0.8

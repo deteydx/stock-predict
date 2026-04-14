@@ -55,6 +55,6 @@ def aggregate(
         verdict=Verdict.from_score(final_score),
         confidence=round(confidence, 2),
         signals=horizon_score.signals,
-        key_levels=horizon_score.key_levels,
+        levels=horizon_score.levels,
         caveats=horizon_score.caveats,
     )

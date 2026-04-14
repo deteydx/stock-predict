@@ -14,6 +14,21 @@ export interface Signal {
   rationale: string
 }
 
+export interface LevelSource {
+  kind: string
+  price: number
+  weight: number
+  detail: string
+}
+
+export interface Level {
+  price: number
+  kind: 'support' | 'resistance'
+  strength: number
+  distance_pct: number
+  sources: LevelSource[]
+}
+
 export interface HorizonScore {
   horizon: string
   raw_score: number
@@ -22,7 +37,7 @@ export interface HorizonScore {
   verdict: string
   confidence: number
   signals: Signal[]
-  key_levels: Record<string, number[]>
+  levels: Level[]
   caveats: string[]
 }
 

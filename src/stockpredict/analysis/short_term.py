@@ -5,16 +5,21 @@ from __future__ import annotations
 from stockpredict.analysis.base import AnalysisContext, HorizonAnalyzer
 from stockpredict.indicators import technical as ta
 from stockpredict.indicators import news as news_ind
-from stockpredict.types import Horizon, Signal
+from stockpredict.indicators.levels import compute_levels
+from stockpredict.types import Horizon, Level, Signal
 
 
 class ShortTermAnalyzer(HorizonAnalyzer):
+    def __init__(self) -> None:
+        self.levels: list[Level] = []
+
     @property
     def horizon(self) -> Horizon:
         return Horizon.SHORT
 
     def analyze(self, ctx: AnalysisContext) -> list[Signal]:
         signals: list[Signal] = []
+        self.levels = []
         close = ctx.bars["close"] if "close" in ctx.bars.columns else None
         weights = ctx.weights or {}
 
@@ -201,33 +206,59 @@ class ShortTermAnalyzer(HorizonAnalyzer):
                 rationale=f"5d momentum at {mom_pct:.0%} percentile",
             ))
 
-        # 9. Pivot Point Support/Resistance
-        if high is not None and low is not None:
-            pivots = ta.pivot_points(high, low, close)
-            if pivots is not None:
-                price = float(close.iloc[-1])
-                atr_val = ta.atr(high, low, close, 14)
-                threshold = float(atr_val.iloc[-1]) if atr_val.iloc[-1] == atr_val.iloc[-1] else price * 0.02
-                if price <= pivots["s2"] + threshold:
-                    s = 2
-                    rat = f"Price {price:.2f} near S2 {pivots['s2']:.2f} — strong support zone"
-                elif price <= pivots["s1"] + threshold:
-                    s = 1
-                    rat = f"Price {price:.2f} near S1 {pivots['s1']:.2f} — support zone"
-                elif price >= pivots["r2"] - threshold:
-                    s = -2
-                    rat = f"Price {price:.2f} near R2 {pivots['r2']:.2f} — strong resistance zone"
-                elif price >= pivots["r1"] - threshold:
-                    s = -1
-                    rat = f"Price {price:.2f} near R1 {pivots['r1']:.2f} — resistance zone"
-                else:
-                    s = 0
-                    rat = f"Price {price:.2f} between pivot levels (P={pivots['pivot']:.2f})"
-                signals.append(Signal(
-                    name="pivot_sr", value=price, score=s,
-                    weight=weights.get("pivot_sr", 1.0),
-                    rationale=rat,
-                ))
+        # 9. Fused multi-source Support / Resistance
+        #    (swing pivots + MAs + fibs + volume profile, ATR-clustered)
+        levels = compute_levels(ctx.bars)
+        self.levels = levels
+        if levels:
+            price = float(close.iloc[-1])
+            atr_series = ta.atr(high, low, close, 14) if high is not None and low is not None else None
+            atr_val = (
+                float(atr_series.iloc[-1])
+                if atr_series is not None and atr_series.iloc[-1] == atr_series.iloc[-1]
+                else price * 0.02
+            )
+            if atr_val <= 0:
+                atr_val = price * 0.02
+
+            supports = [lv for lv in levels if lv.kind == "support"]
+            resistances = [lv for lv in levels if lv.kind == "resistance"]
+            nearest_sup = max(supports, key=lambda lv: lv.price) if supports else None
+            nearest_res = min(resistances, key=lambda lv: lv.price) if resistances else None
+
+            sup_dist = (price - nearest_sup.price) if nearest_sup else float("inf")
+            res_dist = (nearest_res.price - price) if nearest_res else float("inf")
+
+            # Score: close to strong support → bullish; close to strong resistance → bearish
+            s = 0
+            rat_parts = []
+            if nearest_sup and sup_dist <= atr_val:
+                s += 1 + (1 if nearest_sup.strength >= 0.8 and sup_dist <= 0.5 * atr_val else 0)
+                rat_parts.append(
+                    f"price {price:.2f} within {sup_dist / atr_val:.1f} ATR of support "
+                    f"{nearest_sup.price:.2f} (strength {nearest_sup.strength:.2f}, "
+                    f"{len(nearest_sup.sources)} source(s))"
+                )
+            if nearest_res and res_dist <= atr_val:
+                s -= 1 + (1 if nearest_res.strength >= 0.8 and res_dist <= 0.5 * atr_val else 0)
+                rat_parts.append(
+                    f"price {price:.2f} within {res_dist / atr_val:.1f} ATR of resistance "
+                    f"{nearest_res.price:.2f} (strength {nearest_res.strength:.2f}, "
+                    f"{len(nearest_res.sources)} source(s))"
+                )
+            if not rat_parts:
+                sup_txt = f"S={nearest_sup.price:.2f}" if nearest_sup else "S=–"
+                res_txt = f"R={nearest_res.price:.2f}" if nearest_res else "R=–"
+                rat_parts.append(f"price {price:.2f} between levels ({sup_txt}, {res_txt})")
+
+            s = max(-2, min(2, s))
+            signals.append(Signal(
+                name="support_resistance",
+                value=price,
+                score=s,
+                weight=weights.get("support_resistance", 1.0),
+                rationale="; ".join(rat_parts),
+            ))
 
         # 10. News Sentiment (24h)
         if ctx.news:
