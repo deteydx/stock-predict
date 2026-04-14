@@ -115,7 +115,7 @@ class YFinanceClient:
         """Get historical price data (backup for when IBKR is unavailable)."""
         t = yf.Ticker(ticker)
         df = t.history(period=period, auto_adjust=True)
-        if df.index.tz is not None:
+        if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
             df.index = df.index.tz_convert("UTC").tz_localize(None)
         df.index.name = "date"
         df.columns = [c.lower() for c in df.columns]

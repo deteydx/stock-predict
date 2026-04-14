@@ -157,7 +157,7 @@ export default function HomePage() {
               {recent.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => navigate(`/analyze/${item.ticker}`)}
+                  onClick={() => navigate(`/analyze/${item.ticker}`, { state: { analysisId: item.id } })}
                   className="w-full flex items-center justify-between gap-4 rounded-xl border border-gray-800 bg-gray-950/80 px-4 py-4 transition-colors text-left hover:border-gray-700 hover:bg-gray-900"
                 >
                   <div className="min-w-0">

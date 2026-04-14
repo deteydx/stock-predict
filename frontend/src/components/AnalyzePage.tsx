@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useLocation, useParams, useNavigate } from 'react-router-dom'
 import {
   addToWatchlist,
   extractApiErrorMessage,
@@ -24,7 +24,17 @@ type Phase = 'idle' | 'loading' | 'progress' | 'done' | 'error'
 export default function AnalyzePage() {
   const { ticker: paramTicker } = useParams<{ ticker: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const ticker = (paramTicker || '').toUpperCase()
+  const [preloadAnalysisId] = useState<number | null>(
+    () => (window.history.state?.usr as { analysisId?: number } | null)?.analysisId ?? null
+  )
+  useEffect(() => {
+    if (preloadAnalysisId != null) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const { user } = useAuth()
   const { t } = useI18n()
 
@@ -121,16 +131,38 @@ export default function AnalyzePage() {
     [clearProgressSubscription, ticker, user?.id]
   )
 
-  // Auto-start analysis when page loads
+  // Auto-start analysis when page loads (or load a specific historical analysis if provided)
   useEffect(() => {
-    if (ticker) {
+    if (!ticker) return
+    if (preloadAnalysisId) {
+      const requestVersion = ++requestVersionRef.current
+      clearProgressSubscription()
+      setPhase('loading')
+      setUpdates([])
+      setError(null)
+      setReport(null)
+      ;(async () => {
+        try {
+          const detail = await getAnalysisDetail(preloadAnalysisId)
+          if (requestVersionRef.current !== requestVersion) return
+          setAnalysisId(preloadAnalysisId)
+          if (detail.report) setReport(detail.report)
+          setPhase('done')
+        } catch {
+          if (requestVersionRef.current !== requestVersion) return
+          setError('load_analysis_failed')
+          setPhase('error')
+        }
+      })()
+    } else {
       void doAnalyze(false)
     }
     return () => {
       requestVersionRef.current += 1
       clearProgressSubscription()
     }
-  }, [clearProgressSubscription, doAnalyze, ticker])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearProgressSubscription, doAnalyze, ticker, preloadAnalysisId])
 
   useEffect(() => {
     if (!ticker) return

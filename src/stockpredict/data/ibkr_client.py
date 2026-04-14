@@ -90,7 +90,7 @@ class IBKRClient:
         df["date"] = pd.to_datetime(df["date"])
         df = df.set_index("date").sort_index()
         # Normalize timezone to tz-naive UTC
-        if df.index.tz is not None:
+        if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
             df.index = df.index.tz_convert("UTC").tz_localize(None)
         logger.info("Fetched %d bars for %s (%s, %s)", len(df), ticker, duration, bar_size)
         return df

@@ -1,0 +1,44 @@
+services:
+  stockpredict:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stockpredict:latest
+    container_name: stockpredict
+    restart: unless-stopped
+
+    # Only listen on loopback — nginx on the host will reverse-proxy to this port.
+    # 3000/3001 are already used by finclaw / notememo; pick 3002 for this project.
+    ports:
+      - "127.0.0.1:3002:8000"
+
+    env_file:
+      - .env
+
+    environment:
+      # Force sqlite path inside the container volume, regardless of .env value
+      DATABASE_URL: "sqlite+aiosqlite:////app/data/stockpredict.db"
+      CACHE_DIR: "/app/cache"
+      REPORTS_DIR: "/app/reports"
+
+    volumes:
+      # Persist DB / cache / reports / models outside the container
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./reports:/app/reports
+      - ./models:/app/models
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/docs >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Keep this service isolated from the other two projects on the host.
+    networks:
+      - stockpredict-net
+
+networks:
+  stockpredict-net:
+    driver: bridge
