@@ -1,12 +1,20 @@
+import { useState } from 'react'
+import { CircleHelp, ChevronDown } from 'lucide-react'
 import type { FundamentalsSnapshot } from '../types'
 import { useI18n } from '../i18n'
+import MetricExplanationBody from './MetricExplanationBody'
+import {
+  resolveFundamentalExplanation,
+  type FundamentalMetricKey,
+} from '../lib/termExplanations'
 
 interface Props {
   fundamentals: FundamentalsSnapshot | null
 }
 
 export default function FundamentalsPanel({ fundamentals }: Props) {
-  const { locale, t } = useI18n()
+  const { language, locale, t } = useI18n()
+  const [expandedKey, setExpandedKey] = useState<FundamentalMetricKey | null>(null)
 
   if (!fundamentals) return null
 
@@ -37,21 +45,26 @@ export default function FundamentalsPanel({ fundamentals }: Props) {
   }
 
   const items = [
-    { label: t('fund.marketCap'), value: compactCurrency(fundamentals.market_cap) },
-    { label: t('fund.peTrailing'), value: decimal(fundamentals.pe_trailing) },
-    { label: t('fund.peForward'), value: decimal(fundamentals.pe_forward) },
-    { label: t('fund.pb'), value: decimal(fundamentals.pb) },
-    { label: t('fund.peg'), value: decimal(fundamentals.peg) },
-    { label: t('fund.evEbitda'), value: decimal(fundamentals.ev_ebitda) },
-    { label: t('fund.roe'), value: percent(fundamentals.roe) },
-    { label: t('fund.profitMargin'), value: percent(fundamentals.profit_margin) },
-    { label: t('fund.revenueGrowth'), value: percent(fundamentals.revenue_growth) },
-    { label: t('fund.earningsGrowth'), value: percent(fundamentals.earnings_growth) },
-    { label: t('fund.debtEquity'), value: debtToEquity(fundamentals.debt_to_equity) },
-    { label: t('fund.freeCashFlow'), value: compactCurrency(fundamentals.free_cash_flow) },
-    { label: t('fund.dividendYield'), value: percent(fundamentals.dividend_yield) },
-    { label: t('fund.beta'), value: decimal(fundamentals.beta) },
-  ]
+    { key: 'market_cap', label: t('fund.marketCap'), rawValue: fundamentals.market_cap, value: compactCurrency(fundamentals.market_cap) },
+    { key: 'pe_trailing', label: t('fund.peTrailing'), rawValue: fundamentals.pe_trailing, value: decimal(fundamentals.pe_trailing) },
+    { key: 'pe_forward', label: t('fund.peForward'), rawValue: fundamentals.pe_forward, value: decimal(fundamentals.pe_forward) },
+    { key: 'pb', label: t('fund.pb'), rawValue: fundamentals.pb, value: decimal(fundamentals.pb) },
+    { key: 'peg', label: t('fund.peg'), rawValue: fundamentals.peg, value: decimal(fundamentals.peg) },
+    { key: 'ev_ebitda', label: t('fund.evEbitda'), rawValue: fundamentals.ev_ebitda, value: decimal(fundamentals.ev_ebitda) },
+    { key: 'roe', label: t('fund.roe'), rawValue: fundamentals.roe, value: percent(fundamentals.roe) },
+    { key: 'profit_margin', label: t('fund.profitMargin'), rawValue: fundamentals.profit_margin, value: percent(fundamentals.profit_margin) },
+    { key: 'revenue_growth', label: t('fund.revenueGrowth'), rawValue: fundamentals.revenue_growth, value: percent(fundamentals.revenue_growth) },
+    { key: 'earnings_growth', label: t('fund.earningsGrowth'), rawValue: fundamentals.earnings_growth, value: percent(fundamentals.earnings_growth) },
+    { key: 'debt_to_equity', label: t('fund.debtEquity'), rawValue: fundamentals.debt_to_equity, value: debtToEquity(fundamentals.debt_to_equity) },
+    { key: 'free_cash_flow', label: t('fund.freeCashFlow'), rawValue: fundamentals.free_cash_flow, value: compactCurrency(fundamentals.free_cash_flow) },
+    { key: 'dividend_yield', label: t('fund.dividendYield'), rawValue: fundamentals.dividend_yield, value: percent(fundamentals.dividend_yield) },
+    { key: 'beta', label: t('fund.beta'), rawValue: fundamentals.beta, value: decimal(fundamentals.beta) },
+  ] satisfies Array<{
+    key: FundamentalMetricKey
+    label: string
+    rawValue: number | null
+    value: string
+  }>
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
@@ -59,6 +72,7 @@ export default function FundamentalsPanel({ fundamentals }: Props) {
         <div>
           <h3 className="text-lg font-semibold text-white">{t('fund.title')}</h3>
           <p className="text-sm text-gray-500 mt-1">{t('fund.subtitle')}</p>
+          <p className="text-xs text-emerald-300/70 mt-2">{t('explain.hint')}</p>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
           {fundamentals.sector && (
@@ -75,12 +89,42 @@ export default function FundamentalsPanel({ fundamentals }: Props) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-        {items.map((item) => (
-          <div key={item.label} className="rounded-lg border border-gray-800 bg-gray-950/70 p-3">
-            <div className="text-xs text-gray-500 mb-1">{item.label}</div>
-            <div className="text-sm font-mono text-gray-200">{item.value}</div>
-          </div>
-        ))}
+        {items.map((item) => {
+          const explanation = resolveFundamentalExplanation(item.key, item.rawValue, {
+            language,
+            locale,
+          })
+          const isOpen = expandedKey === item.key
+
+          return (
+            <div key={item.key} className="rounded-lg border border-gray-800 bg-gray-950/70 p-3">
+              <button
+                type="button"
+                onClick={() => setExpandedKey(isOpen ? null : item.key)}
+                aria-expanded={isOpen}
+                className="w-full text-left"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-500 mb-1">{item.label}</div>
+                    <div className="text-sm font-mono text-gray-200">{item.value}</div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-300">
+                    <CircleHelp className="h-3.5 w-3.5" />
+                    {isOpen ? t('explain.hide') : t('explain.show')}
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  </span>
+                </div>
+              </button>
+
+              {explanation && isOpen && (
+                <div className="mt-3 border-t border-gray-800 pt-3">
+                  <MetricExplanationBody explanation={explanation} />
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {fundamentals.market_cap == null && fundamentals.pe_trailing == null && fundamentals.revenue_growth == null && (

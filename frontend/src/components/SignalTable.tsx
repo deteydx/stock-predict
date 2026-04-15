@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Fragment, useState } from 'react'
+import { ChevronDown, ChevronRight, CircleHelp } from 'lucide-react'
 import type { HorizonScore, Signal } from '../types'
 import { useI18n } from '../i18n'
+import MetricExplanationBody from './MetricExplanationBody'
+import { resolveSignalExplanation } from '../lib/termExplanations'
 
 interface Props {
   label: string
@@ -32,7 +34,8 @@ function formatSignalValue(signal: Signal) {
 
 export default function SignalTable({ label, data }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const { t, translateSignalName, translateSignalRationale } = useI18n()
+  const [expandedSignalName, setExpandedSignalName] = useState<string | null>(null)
+  const { language, locale, t, translateSignalName, translateSignalRationale } = useI18n()
 
   if (!data || data.signals.length === 0) return null
 
@@ -52,6 +55,7 @@ export default function SignalTable({ label, data }: Props) {
 
       {expanded && (
         <div className="px-4 pb-3">
+          <p className="mb-3 text-xs text-emerald-300/70">{t('explain.hint')}</p>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-500 text-xs border-b border-gray-800">
@@ -62,20 +66,48 @@ export default function SignalTable({ label, data }: Props) {
               </tr>
             </thead>
             <tbody>
-              {data.signals.map((signal) => (
-                <tr key={signal.name} className="border-b border-gray-800/50">
-                  <td className="py-2 text-gray-300 font-mono text-xs" title={signal.name}>
-                    {translateSignalName(signal.name)}
-                  </td>
-                  <td className="py-2 text-right text-gray-400 font-mono text-xs">
-                    {formatSignalValue(signal)}
-                  </td>
-                  <td className="py-2 text-center">{scoreBadge(signal.score)}</td>
-                  <td className="py-2 pl-4 text-gray-500 text-xs">
-                    {translateSignalRationale(signal.name, signal.rationale)}
-                  </td>
-                </tr>
-              ))}
+              {data.signals.map((signal) => {
+                const explanation = resolveSignalExplanation(signal, { language, locale })
+                const isOpen = expandedSignalName === signal.name
+
+                return (
+                  <Fragment key={signal.name}>
+                    <tr className="border-b border-gray-800/50">
+                      <td className="py-2 text-gray-300 font-mono text-xs" title={signal.name}>
+                        {explanation ? (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedSignalName(isOpen ? null : signal.name)}
+                            aria-expanded={isOpen}
+                            className="inline-flex items-center gap-1.5 text-left text-gray-300 transition-colors hover:text-emerald-300"
+                          >
+                            <span>{translateSignalName(signal.name)}</span>
+                            <CircleHelp className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          translateSignalName(signal.name)
+                        )}
+                      </td>
+                      <td className="py-2 text-right text-gray-400 font-mono text-xs">
+                        {formatSignalValue(signal)}
+                      </td>
+                      <td className="py-2 text-center">{scoreBadge(signal.score)}</td>
+                      <td className="py-2 pl-4 text-gray-500 text-xs">
+                        {translateSignalRationale(signal.name, signal.rationale)}
+                      </td>
+                    </tr>
+                    {explanation && isOpen && (
+                      <tr className="border-b border-gray-800/50 bg-gray-950/40">
+                        <td colSpan={4} className="pb-3 pt-1">
+                          <div className="rounded-lg border border-gray-800 bg-gray-950/80 p-4">
+                            <MetricExplanationBody explanation={explanation} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
