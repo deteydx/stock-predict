@@ -132,7 +132,13 @@ export default function HomePage() {
                 >
                   <button
                     type="button"
-                    onClick={() => navigate(`/analyze/${item.ticker}`)}
+                    onClick={() => {
+                      const latest = recent.find((r) => r.ticker === item.ticker)
+                      navigate(
+                        `/analyze/${item.ticker}`,
+                        latest ? { state: { analysisId: latest.id } } : undefined
+                      )
+                    }}
                     className="flex-1 text-left"
                   >
                     <div className="text-sm font-semibold text-white">{item.ticker}</div>
