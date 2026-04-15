@@ -19,7 +19,8 @@ const inflightAnalysisRequests = new Map<string, Promise<AnalyzeResponse>>()
 export async function startAnalysis(
   ticker: string,
   forceRefresh = false,
-  aiSettings?: UserLLMSettings
+  aiSettings?: UserLLMSettings,
+  language: 'en' | 'zh' = 'zh'
 ): Promise<AnalyzeResponse> {
   const normalizedTicker = ticker.toUpperCase()
   const trimmedApiKey = aiSettings?.apiKey.trim()
@@ -34,6 +35,7 @@ export async function startAnalysis(
     ticker: normalizedTicker,
     forceRefresh,
     ai: effectiveAiSettings ?? null,
+    language,
   })
   const existingRequest = inflightAnalysisRequests.get(requestKey)
   if (existingRequest) {
@@ -42,6 +44,7 @@ export async function startAnalysis(
 
   const request = api.post<AnalyzeResponse>(`/analyze/${normalizedTicker}`, {
     force_refresh: forceRefresh,
+    language,
     ai: effectiveAiSettings
       ? {
           provider: effectiveAiSettings.provider,

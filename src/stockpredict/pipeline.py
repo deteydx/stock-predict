@@ -78,6 +78,7 @@ async def run_analysis(
     ibkr_client: IBKRClient | None = None,
     settings: Settings | None = None,
     progress_callback: ProgressCallback = None,
+    language: str = "zh",
 ) -> Report:
     """Execute the full analysis pipeline for a ticker.
 
@@ -349,7 +350,8 @@ async def run_analysis(
             from stockpredict.ai.analyzer import create_ai_analyzer
             ai_analyzer = await create_ai_analyzer(settings.ai)
             if ai_analyzer:
-                report.ai_summary = await ai_analyzer.analyze(report)
+                report.ai_summary = await ai_analyzer.analyze(report, language=language)
+                report.ai_language = "en" if language == "en" else "zh"
                 report.ai_provider = settings.ai.ai_provider
                 report.ai_model = (
                     settings.ai.openai_model

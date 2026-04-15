@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from stockpredict.ai.prompts import SYSTEM_PROMPT, build_user_prompt
+from stockpredict.ai.prompts import build_user_prompt, get_system_prompt
 from stockpredict.ai.providers import LLMProvider, create_provider
 from stockpredict.types import Report
 
@@ -17,20 +17,23 @@ class AIAnalyzer:
     def __init__(self, provider: LLMProvider):
         self._provider = provider
 
-    async def analyze(self, report: Report) -> str:
+    async def analyze(self, report: Report, language: str = "zh") -> str:
         """Generate AI analysis summary for the given report.
 
         Args:
             report: Complete Report with all signals and scores populated.
+            language: Output language, "zh" or "en".
 
         Returns:
             Markdown-formatted analysis text.
         """
+        lang = "en" if language == "en" else "zh"
         report_data = report.model_dump()
-        user_prompt = build_user_prompt(report_data)
+        user_prompt = build_user_prompt(report_data, language=lang)
+        system_prompt = get_system_prompt(language=lang)
 
-        logger.info("Sending analysis request to LLM for %s...", report.ticker)
-        summary = await self._provider.complete(SYSTEM_PROMPT, user_prompt)
+        logger.info("Sending analysis request to LLM for %s (lang=%s)...", report.ticker, lang)
+        summary = await self._provider.complete(system_prompt, user_prompt)
         logger.info("AI analysis complete for %s: %d chars", report.ticker, len(summary))
         return summary
 

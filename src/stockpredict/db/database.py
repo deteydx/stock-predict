@@ -43,6 +43,8 @@ def _run_migrations(sync_conn) -> None:
     analysis_columns = {column["name"] for column in inspector.get_columns("analyses")}
     if "user_id" not in analysis_columns:
         sync_conn.execute(text("ALTER TABLE analyses ADD COLUMN user_id INTEGER"))
+    if "ai_language" not in analysis_columns:
+        sync_conn.execute(text("ALTER TABLE analyses ADD COLUMN ai_language VARCHAR(8)"))
 
     sync_conn.execute(text(
         "CREATE INDEX IF NOT EXISTS ix_analyses_user_id ON analyses (user_id)"

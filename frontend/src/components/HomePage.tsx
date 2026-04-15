@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
   addToWatchlist,
+  deleteAnalysis,
   getRecent,
   getWatchlist,
   removeFromWatchlist,
@@ -31,10 +32,11 @@ export default function HomePage() {
   const [watchlistTicker, setWatchlistTicker] = useState('')
   const [addingWatchlist, setAddingWatchlist] = useState(false)
   const [removingTicker, setRemovingTicker] = useState<string | null>(null)
+  const [deletingRecentId, setDeletingRecentId] = useState<number | null>(null)
   const { formatDate, formatDateTime, formatVerdict, t } = useI18n()
 
   useEffect(() => {
-    getRecent(10).then(setRecent).catch(() => {})
+    getRecent(100).then(setRecent).catch(() => {})
     getWatchlist().then((items) => setWatchlist(sortWatchlist(items))).catch(() => {})
   }, [])
 
@@ -57,6 +59,17 @@ export default function HomePage() {
       setWatchlistTicker('')
     } finally {
       setAddingWatchlist(false)
+    }
+  }
+
+  const handleDeleteRecent = async (id: number) => {
+    if (!window.confirm(t('history.deleteConfirm'))) return
+    setDeletingRecentId(id)
+    try {
+      await deleteAnalysis(id)
+      setRecent((current) => current.filter((item) => item.id !== id))
+    } finally {
+      setDeletingRecentId(null)
     }
   }
 
@@ -111,7 +124,7 @@ export default function HomePage() {
           </form>
 
           {watchlist.length > 0 ? (
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
               {watchlist.map((item) => (
                 <div
                   key={item.id}
@@ -153,36 +166,50 @@ export default function HomePage() {
           <p className="mt-1 text-sm text-gray-500">{t('home.recentSubtitle')}</p>
 
           {recent.length > 0 ? (
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
               {recent.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  onClick={() => navigate(`/analyze/${item.ticker}`, { state: { analysisId: item.id } })}
-                  className="w-full flex items-center justify-between gap-4 rounded-xl border border-gray-800 bg-gray-950/80 px-4 py-4 transition-colors text-left hover:border-gray-700 hover:bg-gray-900"
+                  className="group flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-950/80 px-4 py-4 transition-colors hover:border-gray-700 hover:bg-gray-900"
                 >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-lg font-bold text-white">{item.ticker}</span>
-                      {item.as_of_price != null && (
-                        <span className="text-sm text-gray-400">${item.as_of_price.toFixed(2)}</span>
-                      )}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/analyze/${item.ticker}`, { state: { analysisId: item.id } })}
+                    className="flex flex-1 items-center justify-between gap-4 text-left"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-lg font-bold text-white">{item.ticker}</span>
+                        {item.as_of_price != null && (
+                          <span className="text-sm text-gray-400">${item.as_of_price.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <div className="mt-2 text-xs text-gray-600">
+                        {item.created_at ? formatDate(item.created_at) : ''}
+                      </div>
                     </div>
-                    <div className="mt-2 text-xs text-gray-600">
-                      {item.created_at ? formatDate(item.created_at) : ''}
+                    <div className="flex flex-wrap justify-end gap-3 text-sm">
+                      <span className={verdictColor(item.short_term?.verdict)}>
+                        {t('horizon.short.short')}: {formatVerdict(item.short_term?.verdict)}
+                      </span>
+                      <span className={verdictColor(item.medium_term?.verdict)}>
+                        {t('horizon.medium.short')}: {formatVerdict(item.medium_term?.verdict)}
+                      </span>
+                      <span className={verdictColor(item.long_term?.verdict)}>
+                        {t('horizon.long.short')}: {formatVerdict(item.long_term?.verdict)}
+                      </span>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-3 text-sm">
-                    <span className={verdictColor(item.short_term?.verdict)}>
-                      {t('horizon.short.short')}: {formatVerdict(item.short_term?.verdict)}
-                    </span>
-                    <span className={verdictColor(item.medium_term?.verdict)}>
-                      {t('horizon.medium.short')}: {formatVerdict(item.medium_term?.verdict)}
-                    </span>
-                    <span className={verdictColor(item.long_term?.verdict)}>
-                      {t('horizon.long.short')}: {formatVerdict(item.long_term?.verdict)}
-                    </span>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteRecent(item.id)}
+                    title={t('history.deleteTitle')}
+                    disabled={deletingRecentId === item.id}
+                    className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           ) : (

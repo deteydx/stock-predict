@@ -104,6 +104,7 @@ class Analysis(Base):
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
     ai_model: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ai_language: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     # Config snapshot
     weights_sha: Mapped[str | None] = mapped_column(String(40), nullable=True)

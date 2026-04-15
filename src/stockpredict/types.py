@@ -148,6 +148,7 @@ class Report(BaseModel):
     ai_summary: str | None = None
     ai_provider: str | None = None
     ai_model: str | None = None
+    ai_language: str | None = None
 
     # Metadata
     risks: list[str] = []

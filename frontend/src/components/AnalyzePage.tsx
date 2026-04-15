@@ -36,7 +36,7 @@ export default function AnalyzePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const { user } = useAuth()
-  const { t } = useI18n()
+  const { t, language } = useI18n()
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [updates, setUpdates] = useState<ProgressUpdate[]>([])
@@ -47,6 +47,10 @@ export default function AnalyzePage() {
   const [watchlistLoading, setWatchlistLoading] = useState(false)
   const progressUnsubscribeRef = useRef<(() => void) | null>(null)
   const requestVersionRef = useRef(0)
+  const languageRef = useRef(language)
+  useEffect(() => {
+    languageRef.current = language
+  }, [language])
 
   const localizeError = (message: string | null) => {
     if (!message) return null
@@ -73,7 +77,7 @@ export default function AnalyzePage() {
       setReport(null)
 
       try {
-        const resp = await startAnalysis(ticker, forceRefresh, getStoredLLMSettings(user?.id))
+        const resp = await startAnalysis(ticker, forceRefresh, getStoredLLMSettings(user?.id), languageRef.current)
         if (requestVersionRef.current !== requestVersion) return
 
         if (resp.cached && resp.analysis_id) {

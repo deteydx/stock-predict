@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { extractApiErrorMessage } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../i18n'
@@ -25,6 +26,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const title = useMemo(
     () => (mode === 'login' ? t('auth.loginTitle') : t('auth.registerTitle')),
@@ -100,16 +102,26 @@ export default function AuthPage() {
             <span className="mb-2 block text-sm font-medium text-gray-300">
               {t('auth.passwordLabel')}
             </span>
-            <input
-              type="password"
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={t('auth.passwordPlaceholder')}
-              className="w-full rounded-xl border border-gray-800 bg-gray-950 px-4 py-3 text-white outline-none transition-colors placeholder:text-gray-600 focus:border-emerald-500/50"
-              minLength={8}
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={t('auth.passwordPlaceholder')}
+                className="w-full rounded-xl border border-gray-800 bg-gray-950 px-4 py-3 pr-12 text-white outline-none transition-colors placeholder:text-gray-600 focus:border-emerald-500/50"
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-200"
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </label>
 
           {error && (

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from stockpredict.db.models import Analysis, User, UserSession, WatchlistItem
@@ -223,9 +223,28 @@ async def list_history(
 
 
 async def list_recent(db: AsyncSession, user_id: int, limit: int = 20) -> list[Analysis]:
-    """List the user's most recent analyses across all tickers."""
+    """List the user's most recent analyses, one per ticker (latest only)."""
+    latest_per_ticker = (
+        select(
+            Analysis.ticker.label("ticker"),
+            func.max(Analysis.created_at).label("max_ts"),
+        )
+        .where(
+            Analysis.user_id == user_id,
+            Analysis.status == "completed",
+        )
+        .group_by(Analysis.ticker)
+        .subquery()
+    )
     stmt = (
         select(Analysis)
+        .join(
+            latest_per_ticker,
+            and_(
+                Analysis.ticker == latest_per_ticker.c.ticker,
+                Analysis.created_at == latest_per_ticker.c.max_ts,
+            ),
+        )
         .where(
             Analysis.user_id == user_id,
             Analysis.status == "completed",

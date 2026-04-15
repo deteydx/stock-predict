@@ -51,6 +51,7 @@ class RequestedAIConfig:
     enabled: bool
     provider: str | None = None
     model: str | None = None
+    language: str = "zh"
 
 
 class AnalyzeAIRequest(BaseModel):
@@ -67,6 +68,7 @@ class AnalyzeAIRequest(BaseModel):
 class AnalyzeRequest(BaseModel):
     force_refresh: bool = False
     ai: AnalyzeAIRequest | None = None
+    language: Literal["zh", "en"] = "zh"
 
 
 class AnalyzeResponse(BaseModel):
@@ -85,13 +87,14 @@ def _default_model_for_provider(provider: Literal["openai", "claude"], settings:
 def _build_runtime_settings(
     settings: Settings,
     request_ai: AnalyzeAIRequest | None,
+    language: str = "zh",
 ) -> tuple[Settings, RequestedAIConfig]:
     runtime_settings = settings.model_copy(deep=True)
     runtime_ai = runtime_settings.ai.model_copy(deep=True)
 
     if request_ai is None:
         if not runtime_ai.ai_enabled:
-            return runtime_settings, RequestedAIConfig(enabled=False)
+            return runtime_settings, RequestedAIConfig(enabled=False, language=language)
 
         model = (
             runtime_ai.openai_model
@@ -102,6 +105,7 @@ def _build_runtime_settings(
             enabled=True,
             provider=runtime_ai.ai_provider,
             model=model,
+            language=language,
         )
 
     provider = request_ai.provider
@@ -121,25 +125,28 @@ def _build_runtime_settings(
     runtime_settings.ai = runtime_ai
 
     if not runtime_ai.ai_enabled:
-        return runtime_settings, RequestedAIConfig(enabled=False)
+        return runtime_settings, RequestedAIConfig(enabled=False, language=language)
 
     return runtime_settings, RequestedAIConfig(
         enabled=True,
         provider=provider,
         model=model,
+        language=language,
     )
 
 
 def _matches_requested_ai_config(analysis: Analysis, requested_ai: RequestedAIConfig) -> bool:
     if not requested_ai.enabled:
         return analysis.ai_provider is None and analysis.ai_model is None
+    stored_lang = getattr(analysis, "ai_language", None) or "zh"
     return (
         analysis.ai_provider == requested_ai.provider
         and analysis.ai_model == requested_ai.model
+        and stored_lang == requested_ai.language
     )
 
 
-async def _run_pipeline(analysis_id: int, ticker: str, settings: Settings):
+async def _run_pipeline(analysis_id: int, ticker: str, settings: Settings, language: str = "zh"):
     """Background task that runs the analysis pipeline."""
     from stockpredict.db.database import async_session_factory
     from stockpredict.pipeline import run_analysis
@@ -156,6 +163,7 @@ async def _run_pipeline(analysis_id: int, ticker: str, settings: Settings):
             ibkr_client=None,  # Will fallback to yfinance
             settings=settings,
             progress_callback=progress_cb,
+            language=language,
         )
 
         # Save to database
@@ -178,9 +186,11 @@ async def _run_pipeline(analysis_id: int, ticker: str, settings: Settings):
                 ai_summary=report.ai_summary,
                 ai_provider=report.ai_provider,
                 ai_model=report.ai_model,
+                ai_language=report.ai_language,
             )
 
-        await progress_cb(ProgressUpdate(step="completed", progress=100, message="分析完成"))
+        completed_msg = "Analysis complete" if language == "en" else "分析完成"
+        await progress_cb(ProgressUpdate(step="completed", progress=100, message=completed_msg))
 
     except Exception as e:
         logger.error("Pipeline failed for %s: %s", ticker, e, exc_info=True)
@@ -209,7 +219,7 @@ async def analyze_ticker(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    runtime_settings, requested_ai = _build_runtime_settings(settings, request.ai)
+    runtime_settings, requested_ai = _build_runtime_settings(settings, request.ai, request.language)
 
     # Check for cached result
     if not request.force_refresh:
@@ -238,6 +248,7 @@ async def analyze_ticker(
         created_at=datetime.utcnow(),
         ai_provider=requested_ai.provider,
         ai_model=requested_ai.model,
+        ai_language=requested_ai.language if requested_ai.enabled else None,
     )
     analysis_id = await crud.save_analysis(db, analysis)
 
@@ -247,7 +258,7 @@ async def analyze_ticker(
     _progress_store_created[analysis_id] = time.monotonic()
 
     # Run pipeline in background
-    background_tasks.add_task(_run_pipeline, analysis_id, ticker, runtime_settings)
+    background_tasks.add_task(_run_pipeline, analysis_id, ticker, runtime_settings, request.language)
 
     return AnalyzeResponse(
         task_id=analysis_id,
