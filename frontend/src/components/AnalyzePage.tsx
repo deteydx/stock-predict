@@ -4,6 +4,7 @@ import {
   addToWatchlist,
   extractApiErrorMessage,
   getAnalysisDetail,
+  getHistory,
   getWatchlist,
   removeFromWatchlist,
   startAnalysis,
@@ -159,7 +160,32 @@ export default function AnalyzePage() {
         }
       })()
     } else {
-      void doAnalyze(false)
+      const requestVersion = ++requestVersionRef.current
+      clearProgressSubscription()
+      setPhase('loading')
+      setUpdates([])
+      setError(null)
+      setReport(null)
+      ;(async () => {
+        try {
+          const history = await getHistory(ticker, 1)
+          if (requestVersionRef.current !== requestVersion) return
+          if (history.length > 0) {
+            const latest = history[0]
+            const detail = await getAnalysisDetail(latest.id)
+            if (requestVersionRef.current !== requestVersion) return
+            setAnalysisId(latest.id)
+            if (detail.report) setReport(detail.report)
+            setPhase('done')
+            return
+          }
+          if (requestVersionRef.current !== requestVersion) return
+          void doAnalyze(false)
+        } catch {
+          if (requestVersionRef.current !== requestVersion) return
+          void doAnalyze(false)
+        }
+      })()
     }
     return () => {
       requestVersionRef.current += 1
