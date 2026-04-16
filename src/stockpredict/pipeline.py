@@ -15,6 +15,7 @@ from config.settings import Settings, get_settings
 from stockpredict.analysis.base import AnalysisContext
 from stockpredict.analysis.long_term import LongTermAnalyzer
 from stockpredict.analysis.medium_term import MediumTermAnalyzer
+from stockpredict.analysis.options_outlook import analyze_options
 from stockpredict.analysis.short_term import ShortTermAnalyzer
 from stockpredict.data.cache import DiskCache, TTL_DAILY_BARS, TTL_FUNDAMENTALS, TTL_NEWS, TTL_MACRO
 from stockpredict.data.ibkr_client import IBKRClient
@@ -341,6 +342,25 @@ async def run_analysis(
             report.caveats.extend(hs.caveats)
 
     # -----------------------------------------------------------------------
+    # Step 7b: Options-implied outlook (independent of horizon scoring)
+    # -----------------------------------------------------------------------
+    await _notify(progress_callback, "options_outlook", 75, "分析期权市场隐含信息...")
+
+    try:
+        report.options_outlook = await analyze_options(
+            ticker=ticker,
+            ibkr_client=ibkr_client,
+            price_df=bars,
+        )
+        if report.options_outlook is None:
+            report.caveats.append("Options outlook unavailable")
+        else:
+            report.caveats.extend(report.options_outlook.caveats)
+    except Exception as e:
+        logger.warning("Options outlook step failed for %s: %s", ticker, e)
+        report.caveats.append(f"Options outlook unavailable: {e}")
+
+    # -----------------------------------------------------------------------
     # Step 8: AI Analysis
     # -----------------------------------------------------------------------
     await _notify(progress_callback, "ai_analysis", 80, "AI分析中...")
@@ -372,6 +392,10 @@ async def run_analysis(
         "fundamentals": {"available": fundamentals is not None},
         "news": {"count": len(news_items)},
         "macro": {"available": macro is not None},
+        "options": {
+            "source": report.options_outlook.data_source if report.options_outlook else None,
+            "available": report.options_outlook is not None,
+        },
     }
 
     return report

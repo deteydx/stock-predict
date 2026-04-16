@@ -34,13 +34,21 @@ SYSTEM_PROMPT_ZH = """\
 - 成长空间和护城河
 - 宏观环境影响
 
-## 5. 风险提示
+## 5. 期权市场隐含信息（如果提供了"期权市场隐含信息"数据）
+**必须**严格基于下方"期权市场隐含信息"中的实际数据作答；如未提供则跳过本节。内容包括：
+- **期权市场预期的价格区间**：直接引用最近到期的 1σ / 2σ 区间价格（例如"最近到期(YYYY-MM-DD, XX DTE) 期权隐含 1σ 区间 [$A, $B]，约 ±X%；2σ 区间 [$C, $D]"）
+- **多空情绪**：基于 Put/Call Ratio（成交量与未平仓）、IV Skew 给出判断（恐慌/平衡/贪婪），并引用具体数值
+- **IV Rank（HV 代理）**：说明当前隐含波动率相对历史实现波动率的偏贵/偏便宜
+- **关键价位**：引用 Max Pain 与 OI 支撑/阻力簇的具体 strike，说明其作为磁吸/压力位的含义
+- 本节是独立的"市场隐含视角"，**不要**把这里的数字再塞回上面的短期关键位
+
+## 6. 风险提示
 列出最大的3个风险因素，按影响程度排序
 
-## 6. 潜在催化剂
+## 7. 潜在催化剂
 列出可能推动股价的正面事件
 
-## 7. 操作建议
+## 8. 操作建议
 具体到仓位建议（轻仓/标准/重仓）和进场时机
 
 **重要要求：**
@@ -78,13 +86,21 @@ Based on valuation, growth, and the macro environment:
 - Growth runway and moat
 - Macro environment impact
 
-## 5. Risk Factors
+## 5. Options-Implied Outlook (only if "Options-Implied Outlook" data is provided)
+You MUST ground this section strictly in the actual values from the "Options-Implied Outlook" block below; skip the section entirely when that block is absent. Cover:
+- **Implied price range**: directly cite the nearest-expiry 1σ / 2σ ranges (e.g., "Nearest expiry YYYY-MM-DD (XX DTE) implies a 1σ range of $A–$B (~±X%), 2σ range $C–$D").
+- **Sentiment**: interpret Put/Call Ratio (volume and open interest) and IV Skew as fear / balanced / greed, quoting the actual numbers.
+- **IV Rank (HV proxy)**: state whether implied vol is rich or cheap versus the 52-week realized-vol distribution.
+- **Key strikes**: cite Max Pain and the top open-interest support/resistance strikes, explaining each as a magnet or barrier.
+- This section represents the independent "market-implied view" — do NOT recycle these numbers into the Short-Term levels section above.
+
+## 6. Risk Factors
 List the top 3 risks, ranked by impact
 
-## 6. Potential Catalysts
+## 7. Potential Catalysts
 List positive events that could drive the stock higher
 
-## 7. Actionable Recommendation
+## 8. Actionable Recommendation
 Specify position sizing (light / standard / heavy) and entry timing
 
 **Important requirements:**
@@ -121,6 +137,24 @@ _LABELS = {
         "sentiment": "情绪",
         "risks": "已识别风险",
         "caveats": "数据注意事项",
+        "options_header": "期权市场隐含信息",
+        "options_source": "数据来源",
+        "implied_ranges": "隐含价格区间（按到期日）",
+        "expiry": "到期",
+        "dte": "剩余天数",
+        "atm_iv": "ATM IV",
+        "expected_move": "隐含波动幅度",
+        "straddle": "跨式报价",
+        "range_1s": "1σ 区间",
+        "range_2s": "2σ 区间",
+        "iv_rank_label": "IV Rank（HV 代理）",
+        "pcr_vol_label": "成交量 Put/Call 比",
+        "pcr_oi_label": "未平仓 Put/Call 比",
+        "iv_skew_label": "IV Skew（25Δ Put − Call）",
+        "max_pain_label": "Max Pain 价位",
+        "oi_support": "OI 支撑簇（高 put OI）",
+        "oi_resistance": "OI 阻力簇（高 call OI）",
+        "options_summary": "一句话要点",
     },
     "en": {
         "stock": "Stock",
@@ -139,6 +173,24 @@ _LABELS = {
         "sentiment": "sentiment",
         "risks": "Identified Risks",
         "caveats": "Data Caveats",
+        "options_header": "Options-Implied Outlook",
+        "options_source": "Data source",
+        "implied_ranges": "Implied Price Ranges (by expiry)",
+        "expiry": "Expiry",
+        "dte": "DTE",
+        "atm_iv": "ATM IV",
+        "expected_move": "Expected move",
+        "straddle": "Straddle",
+        "range_1s": "1σ range",
+        "range_2s": "2σ range",
+        "iv_rank_label": "IV Rank (HV proxy)",
+        "pcr_vol_label": "Volume Put/Call Ratio",
+        "pcr_oi_label": "Open-Interest Put/Call Ratio",
+        "iv_skew_label": "IV Skew (25Δ Put − Call)",
+        "max_pain_label": "Max Pain strike",
+        "oi_support": "OI Support clusters (high put OI)",
+        "oi_resistance": "OI Resistance clusters (high call OI)",
+        "options_summary": "Summary",
     },
 }
 
@@ -194,6 +246,70 @@ def build_user_prompt(report_data: dict, language: Language = "zh") -> str:
                 f"- {emoji} [{n.get('source', '')}] {n.get('headline', '')} "
                 f"({L['sentiment']}: {sent:+.2f})"
             )
+
+    options = report_data.get("options_outlook")
+    if options:
+        sections.append(f"\n## {L['options_header']}")
+        src = options.get("data_source") or "N/A"
+        spot = options.get("spot")
+        spot_txt = f"${spot:.2f}" if isinstance(spot, (int, float)) else "N/A"
+        sections.append(f"{L['options_source']}: {src}  |  Spot: {spot_txt}")
+
+        if options.get("summary"):
+            sections.append(f"{L['options_summary']}: {options['summary']}")
+
+        ranges = options.get("implied_ranges") or []
+        if ranges:
+            sections.append(f"\n### {L['implied_ranges']}")
+            for r in ranges:
+                parts = [
+                    f"{L['expiry']}={r.get('expiry')}",
+                    f"{L['dte']}={r.get('dte')}",
+                ]
+                if r.get("atm_iv") is not None:
+                    parts.append(f"{L['atm_iv']}={r['atm_iv']:.2%}")
+                if r.get("expected_move_pct") is not None:
+                    parts.append(f"{L['expected_move']}=±{r['expected_move_pct']:.2%}")
+                if r.get("straddle_price") is not None:
+                    parts.append(f"{L['straddle']}=${r['straddle_price']:.2f}")
+                if r.get("range_1sigma_low") is not None and r.get("range_1sigma_high") is not None:
+                    parts.append(
+                        f"{L['range_1s']}=[${r['range_1sigma_low']:.2f}, ${r['range_1sigma_high']:.2f}]"
+                    )
+                if r.get("range_2sigma_low") is not None and r.get("range_2sigma_high") is not None:
+                    parts.append(
+                        f"{L['range_2s']}=[${r['range_2sigma_low']:.2f}, ${r['range_2sigma_high']:.2f}]"
+                    )
+                sections.append("- " + "  |  ".join(parts))
+
+        def _metric_line(label_key: str, metric: dict | None) -> None:
+            if not metric:
+                return
+            val = metric.get("value")
+            val_txt = f"{val:.4f}" if isinstance(val, (int, float)) else "N/A"
+            rationale = metric.get("rationale", "")
+            sections.append(f"- **{L[label_key]}**: {val_txt} — {rationale}")
+
+        sections.append("")
+        _metric_line("iv_rank_label", options.get("iv_rank"))
+        _metric_line("pcr_vol_label", options.get("pcr_volume"))
+        _metric_line("pcr_oi_label", options.get("pcr_oi"))
+        _metric_line("iv_skew_label", options.get("iv_skew"))
+        _metric_line("max_pain_label", options.get("max_pain"))
+
+        def _render_oi(label_key: str, strikes: list[dict]) -> None:
+            if not strikes:
+                return
+            sections.append(f"\n### {L[label_key]}")
+            for s in strikes:
+                sections.append(
+                    f"- strike ${s.get('strike'):.2f}  "
+                    f"call OI={s.get('call_oi', 0)}  put OI={s.get('put_oi', 0)}  "
+                    f"{L['distance']} {float(s.get('distance_pct', 0)) * 100:+.2f}%"
+                )
+
+        _render_oi("oi_support", options.get("oi_support") or [])
+        _render_oi("oi_resistance", options.get("oi_resistance") or [])
 
     risks = report_data.get("risks", [])
     if risks:

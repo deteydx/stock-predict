@@ -125,6 +125,57 @@ class FundamentalsSnapshot(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Options-implied outlook
+# ---------------------------------------------------------------------------
+
+class OptionsMetric(BaseModel):
+    """Single options-derived metric with human-readable rationale."""
+    name: str
+    value: float | None = None
+    rationale: str = ""
+
+
+class ImpliedRange(BaseModel):
+    """Implied price range at a given expiry derived from options pricing."""
+    expiry: str                       # YYYY-MM-DD
+    dte: int                          # days to expiration
+    atm_iv: float | None = None       # annualized, e.g. 0.32
+    expected_move_pct: float | None = None   # implied move as fraction of spot
+    straddle_price: float | None = None
+    range_1sigma_low: float | None = None
+    range_1sigma_high: float | None = None
+    range_2sigma_low: float | None = None
+    range_2sigma_high: float | None = None
+
+
+class OIStrike(BaseModel):
+    """Aggregated open interest at a specific strike."""
+    strike: float
+    call_oi: int = 0
+    put_oi: int = 0
+    distance_pct: float = 0.0         # (strike - spot) / spot
+
+
+class OptionsOutlook(BaseModel):
+    """Options-market-implied outlook (informational, not scored)."""
+    spot: float
+    data_source: str = ""             # "ibkr" | "yfinance"
+    as_of: datetime = Field(default_factory=datetime.utcnow)
+
+    implied_ranges: list[ImpliedRange] = []
+    iv_rank: OptionsMetric | None = None
+    pcr_volume: OptionsMetric | None = None
+    pcr_oi: OptionsMetric | None = None
+    iv_skew: OptionsMetric | None = None
+    max_pain: OptionsMetric | None = None      # value = max pain price
+    oi_support: list[OIStrike] = []            # top put-OI clusters below spot
+    oi_resistance: list[OIStrike] = []         # top call-OI clusters above spot
+
+    summary: str = ""                 # short natural-language summary
+    caveats: list[str] = []
+
+
+# ---------------------------------------------------------------------------
 # Report (complete analysis output)
 # ---------------------------------------------------------------------------
 
@@ -143,6 +194,9 @@ class Report(BaseModel):
     # News
     news: list[NewsItem] = []
     fundamentals: FundamentalsSnapshot | None = None
+
+    # Options-implied outlook (independent of horizon scoring)
+    options_outlook: OptionsOutlook | None = None
 
     # AI analysis (markdown)
     ai_summary: str | None = None
