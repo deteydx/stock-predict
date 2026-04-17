@@ -2,7 +2,9 @@ import { Fragment, useState } from 'react'
 import { ChevronDown, ChevronRight, CircleHelp } from 'lucide-react'
 import type { HorizonScore, Signal } from '../types'
 import { useI18n } from '../i18n'
+import { useIsMobile } from '../hooks/useIsMobile'
 import MetricExplanationBody from './MetricExplanationBody'
+import MetricExplanationDialog from './MetricExplanationDialog'
 import { resolveSignalExplanation } from '../lib/termExplanations'
 
 interface Props {
@@ -36,6 +38,7 @@ export default function SignalTable({ label, data }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [expandedSignalName, setExpandedSignalName] = useState<string | null>(null)
   const { language, locale, t, translateSignalName, translateSignalRationale } = useI18n()
+  const isMobile = useIsMobile()
 
   if (!data || data.signals.length === 0) return null
 
@@ -96,7 +99,7 @@ export default function SignalTable({ label, data }: Props) {
                         {translateSignalRationale(signal.name, signal.rationale)}
                       </td>
                     </tr>
-                    {explanation && isOpen && (
+                    {explanation && isOpen && !isMobile && (
                       <tr className="border-b border-gray-800/50 bg-gray-950/40">
                         <td colSpan={4} className="pb-3 pt-1">
                           <div className="rounded-lg border border-gray-800 bg-gray-950/80 p-4">
@@ -112,6 +115,20 @@ export default function SignalTable({ label, data }: Props) {
           </table>
         </div>
       )}
+
+      {isMobile && (() => {
+        const active = data.signals.find((signal) => signal.name === expandedSignalName)
+        if (!active) return null
+        const explanation = resolveSignalExplanation(active, { language, locale })
+        if (!explanation) return null
+        return (
+          <MetricExplanationDialog
+            title={translateSignalName(active.name)}
+            explanation={explanation}
+            onClose={() => setExpandedSignalName(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

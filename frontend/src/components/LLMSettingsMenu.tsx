@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Settings2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Settings2, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLLMSettings } from '../hooks/useLLMSettings'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useI18n } from '../i18n'
 import LLMSettingsPanel from './LLMSettingsPanel'
 
@@ -9,32 +11,43 @@ export default function LLMSettingsMenu() {
   const { user } = useAuth()
   const { settings, setSettings } = useLLMSettings(user?.id)
   const { t } = useI18n()
+  const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
 
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-      }
+      if (event.key === 'Escape') setOpen(false)
     }
-
-    document.addEventListener('mousedown', handlePointerDown)
     document.addEventListener('keydown', handleKeyDown)
 
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
+    let removePointer: (() => void) | null = null
+    if (!isMobile) {
+      const handlePointerDown = (event: MouseEvent) => {
+        if (!rootRef.current?.contains(event.target as Node)) {
+          setOpen(false)
+        }
+      }
+      document.addEventListener('mousedown', handlePointerDown)
+      removePointer = () => document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [open])
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      removePointer?.()
+    }
+  }, [open, isMobile])
+
+  useEffect(() => {
+    if (!open || !isMobile) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open, isMobile])
 
   if (!user) return null
 
@@ -55,10 +68,35 @@ export default function LLMSettingsMenu() {
         />
       </button>
 
-      {open && (
+      {open && !isMobile && (
         <div className="absolute right-0 top-full z-50 mt-3 w-[calc(100vw-2rem)] max-w-[40rem]">
           <LLMSettingsPanel settings={settings} onChange={setSettings} />
         </div>
+      )}
+
+      {open && isMobile && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+            className="relative max-h-[90vh] w-full overflow-y-auto"
+          >
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="close"
+              className="absolute right-3 top-3 z-10 rounded-full bg-gray-800/80 p-1.5 text-gray-300 transition-colors hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <LLMSettingsPanel settings={settings} onChange={setSettings} />
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

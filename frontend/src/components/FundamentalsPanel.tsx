@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { CircleHelp, ChevronDown } from 'lucide-react'
 import type { FundamentalsSnapshot } from '../types'
 import { useI18n } from '../i18n'
+import { useIsMobile } from '../hooks/useIsMobile'
 import MetricExplanationBody from './MetricExplanationBody'
+import MetricExplanationDialog from './MetricExplanationDialog'
 import {
   resolveFundamentalExplanation,
   type FundamentalMetricKey,
@@ -14,6 +16,7 @@ interface Props {
 
 export default function FundamentalsPanel({ fundamentals }: Props) {
   const { language, locale, t } = useI18n()
+  const isMobile = useIsMobile()
   const [expandedKey, setExpandedKey] = useState<FundamentalMetricKey | null>(null)
 
   if (!fundamentals) return null
@@ -104,20 +107,25 @@ export default function FundamentalsPanel({ fundamentals }: Props) {
                 aria-expanded={isOpen}
                 className="w-full text-left"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-xs text-gray-500 mb-1">{item.label}</div>
-                    <div className="text-sm font-mono text-gray-200">{item.value}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-gray-500 mb-1 break-words">{item.label}</div>
+                    <div className="text-sm font-mono text-gray-200 break-all">{item.value}</div>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-300">
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 sm:px-2 py-1 text-[11px] text-emerald-300"
+                    aria-label={isOpen ? t('explain.hide') : t('explain.show')}
+                  >
                     <CircleHelp className="h-3.5 w-3.5" />
-                    {isOpen ? t('explain.hide') : t('explain.show')}
+                    <span className="hidden sm:inline">
+                      {isOpen ? t('explain.hide') : t('explain.show')}
+                    </span>
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                   </span>
                 </div>
               </button>
 
-              {explanation && isOpen && (
+              {explanation && isOpen && !isMobile && (
                 <div className="mt-3 border-t border-gray-800 pt-3">
                   <MetricExplanationBody explanation={explanation} />
                 </div>
@@ -130,6 +138,23 @@ export default function FundamentalsPanel({ fundamentals }: Props) {
       {fundamentals.market_cap == null && fundamentals.pe_trailing == null && fundamentals.revenue_growth == null && (
         <div className="mt-4 text-sm text-gray-500">{t('fund.empty')}</div>
       )}
+
+      {isMobile && (() => {
+        const active = items.find((item) => item.key === expandedKey)
+        if (!active) return null
+        const explanation = resolveFundamentalExplanation(active.key, active.rawValue, {
+          language,
+          locale,
+        })
+        if (!explanation) return null
+        return (
+          <MetricExplanationDialog
+            title={active.label}
+            explanation={explanation}
+            onClose={() => setExpandedKey(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

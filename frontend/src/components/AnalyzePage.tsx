@@ -233,16 +233,16 @@ export default function AnalyzePage() {
   return (
     <div>
       {/* Top bar: search + actions */}
-      <div className="flex items-center justify-between mb-6 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3 md:gap-4">
         <TickerInput
           initialValue={ticker}
           onSubmit={(t) => navigate(`/analyze/${t}`)}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => void handleToggleWatchlist()}
             disabled={watchlistLoading || !ticker}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               savedToWatchlist
                 ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20'
                 : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
@@ -255,14 +255,14 @@ export default function AnalyzePage() {
             <>
               <button
                 onClick={() => doAnalyze(true)}
-                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 sm:px-3 py-2 rounded-lg text-sm transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 {t('action.reanalyze')}
               </button>
               <button
                 onClick={handleExportJSON}
-                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 sm:px-3 py-2 rounded-lg text-sm transition-colors"
               >
                 <Download className="w-4 h-4" />
                 {t('action.exportJson')}

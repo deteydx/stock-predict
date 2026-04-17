@@ -121,6 +121,24 @@ export default function LLMSettingsPanel({ settings, onChange }: Props) {
             autoComplete="off"
             spellCheck={false}
           />
+          <p className="mt-2 text-xs text-gray-500">
+            {t('llm.apiKeyHintPrefix')}{' '}
+            <a
+              href={
+                settings.provider === 'openai'
+                  ? 'https://platform.openai.com/api-keys'
+                  : 'https://console.anthropic.com/settings/keys'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 underline-offset-2 hover:text-emerald-300 hover:underline"
+            >
+              {settings.provider === 'openai'
+                ? t('llm.apiKeyHintOpenAI')
+                : t('llm.apiKeyHintClaude')}
+              {' \u2197'}
+            </a>
+          </p>
         </label>
       </div>
     </section>
