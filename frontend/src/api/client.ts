@@ -4,9 +4,27 @@ import type {
   AnalysisDetail,
   AnalysisListItem,
   AuthResponse,
+  LLMProvider,
   UserLLMSettings,
   WatchlistItem,
 } from '../types'
+
+export interface ListModelsResult {
+  models: string[]
+  recommended: string
+  source: 'live' | 'fallback'
+}
+
+export async function fetchAvailableModels(
+  provider: LLMProvider,
+  apiKey: string
+): Promise<ListModelsResult> {
+  const { data } = await api.post<ListModelsResult>('/models', {
+    provider,
+    api_key: apiKey,
+  })
+  return data
+}
 
 const api = axios.create({
   baseURL: '/api',

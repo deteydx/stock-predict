@@ -61,13 +61,14 @@ def create_app() -> FastAPI:
     )
 
     # Register API routes
-    from stockpredict.api.routes import analyze, auth, detail, history, status, watchlist
+    from stockpredict.api.routes import analyze, auth, detail, history, models, status, watchlist
     app.include_router(auth.router, prefix="/api")
     app.include_router(analyze.router, prefix="/api")
     app.include_router(history.router, prefix="/api")
     app.include_router(detail.router, prefix="/api")
     app.include_router(status.router, prefix="/api")
     app.include_router(watchlist.router, prefix="/api")
+    app.include_router(models.router, prefix="/api")
 
     # Serve frontend static files in production
     frontend_dist = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "dist"

@@ -1,5 +1,5 @@
 import type { LLMProvider, UserLLMSettings } from '../types'
-import { DEFAULT_MODELS, MODEL_OPTIONS } from '../hooks/useLLMSettings'
+import { DEFAULT_MODELS, useAvailableModels } from '../hooks/useLLMSettings'
 import { useI18n } from '../i18n'
 
 const CUSTOM_MODEL_VALUE = '__custom__'
@@ -11,18 +11,18 @@ interface Props {
 
 export default function LLMSettingsPanel({ settings, onChange }: Props) {
   const { t } = useI18n()
-  const modelOptions = MODEL_OPTIONS[settings.provider]
+  const { models: modelOptions, source, loading, error } = useAvailableModels(
+    settings.provider,
+    settings.apiKey
+  )
   const isCustomModel = !modelOptions.includes(settings.model)
 
   const handleProviderChange = (provider: LLMProvider) => {
-    const nextModel = MODEL_OPTIONS[provider].includes(settings.model)
-      ? settings.model
-      : DEFAULT_MODELS[provider]
-
     onChange({
       ...settings,
       provider,
-      model: nextModel,
+      // Default to recommended for the new provider; live list will refine after fetch.
+      model: DEFAULT_MODELS[provider],
     })
   }
 
@@ -75,6 +75,15 @@ export default function LLMSettingsPanel({ settings, onChange }: Props) {
               ))}
               <option value={CUSTOM_MODEL_VALUE}>{t('llm.customModel')}</option>
             </select>
+            <p className="mt-2 text-xs text-gray-500">
+              {loading
+                ? t('llm.modelListLoading')
+                : error
+                ? t('llm.modelListError')
+                : source === 'live'
+                ? t('llm.modelListLive')
+                : t('llm.modelListFallback')}
+            </p>
           </label>
 
           {isCustomModel && (
